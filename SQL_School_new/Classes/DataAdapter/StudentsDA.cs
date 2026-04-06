@@ -40,7 +40,10 @@ namespace SQL_School_new.Classes.DataAdapter
         /// </summary>
         public DataTable TabStuds { get; private set; }
 
-
+        /// <summary>
+        /// Таблица для добавления нового студента. Содержит id_stud если удачно, -1 если неудачно
+        /// </summary>
+        public DataTable NewStuds { get; private set; }
 
         public StudentsDA()
         {
@@ -174,9 +177,13 @@ namespace SQL_School_new.Classes.DataAdapter
 
             if (sql.Open(connectionString))
             {
-                sql.Exec("INSERT INTO [dbo].[Students] ([student_name], [birthdate], [id_group]) VALUES (" + stud_name + "," + birthdate  + ", " + id_group +")");
+                NewStuds = sql.ExecTab("EXEC dbo.AddStudent " +
+                                       "@stud_name = '" + stud_name + "', " +
+                                       "@birthdate = '" + birthdate.ToString("yyyy-MM-dd") + "', " +
+                                       "@id_group = " + id_group);
 
-                if (!sql.LastExecIsOK)
+
+                if (NewStuds == null || !sql.LastExecIsOK || Convert.ToInt32(NewStuds.Rows[0][0]) == -1)
                 {
                     sql.Close();
                     SqlErrorMessage = ("Ошибка при добавлении данных SQL [dbo].[Students]\n\n" + sql.pSqlErrorMessage);
