@@ -45,11 +45,27 @@ namespace SQL_School_new.Classes.DataAdapter
         /// </summary>
         public DataTable NewStuds { get; private set; }
 
+
+        /// <summary>
+        /// Таблица для оценок студента
+        /// </summary>
+        public DataTable TabGrades { get; private set; }
+
+
+        /// <summary>
+        /// Таблица для оценок студента
+        /// </summary>
+        public DataTable TabAverageSubjectsGrades { get; private set; }
+
+
         public StudentsDA()
         {
             // выделяем память 
             TabGroups = new DataTable();
             TabStuds = new DataTable();
+            NewStuds = new DataTable();
+            TabGrades = new DataTable();
+            TabAverageSubjectsGrades = new DataTable();
 
 
             // формируем строку подключения
@@ -65,7 +81,8 @@ namespace SQL_School_new.Classes.DataAdapter
         {
             SqlErrorMessage = "";
 
-            TabGroups.Clear();
+            if(TabGroups != null) 
+                TabGroups.Clear();
 
             if (sql.Open(connectionString))
             {
@@ -100,7 +117,8 @@ namespace SQL_School_new.Classes.DataAdapter
         {
             SqlErrorMessage = "";
 
-            TabStuds.Clear();
+            if (TabStuds != null) 
+                TabStuds.Clear();
 
             if (sql.Open(connectionString))
             {
@@ -174,6 +192,9 @@ namespace SQL_School_new.Classes.DataAdapter
         {
             SqlErrorMessage = "";
 
+            if(NewStuds != null) 
+                NewStuds.Clear();
+
 
             if (sql.Open(connectionString))
             {
@@ -201,6 +222,117 @@ namespace SQL_School_new.Classes.DataAdapter
 
             return true;
         }
+
+
+
+
+        /// <summary>
+        /// Обновляет имя студента по id 
+        /// </summary>
+        /// <returns>True - все OK, False - ошибка SQL, см. SqlErrorMessage  </returns>
+        public bool UpdateNameStudent(int id_stud, string new_name)
+        {
+            SqlErrorMessage = "";
+
+
+            if (sql.Open(connectionString))
+            {
+                sql.Exec("UPDATE [dbo].[Students] SET [student_name] = '" + new_name + "' WHERE id_stud = " + id_stud);
+
+                if (!sql.LastExecIsOK)
+                {
+                    sql.Close();
+                    SqlErrorMessage = ("Ошибка при обновлении данных SQL [dbo].[Students]\n\n" + sql.pSqlErrorMessage);
+                    return false;
+                }
+
+            }
+            else
+            {
+                SqlErrorMessage = ("Нет доступа к SQL БД \n\n" + sql.pSqlErrorMessage);
+                return false;
+            }
+
+            sql.Close();
+
+            return true;
+        }
+
+
+        /// <summary>
+        /// Перезаписывает таблицу оценок студента по id
+        /// </summary>
+        /// <returns>True - все OK, False - ошибка SQL, см. SqlErrorMessage  </returns>
+        public bool GetTabGrades(int id_stud)
+        {
+            SqlErrorMessage = "";
+
+            if (TabGrades != null)
+                TabGrades.Clear();
+
+            if (sql.Open(connectionString))
+            {
+                // Помещаем выборку в таблицу
+                TabGrades = sql.ExecTab("SELECT * FROM [dbo].[v_grades] where id_stud = " + id_stud + "  order by [time_test] DESC");
+
+                if (TabGrades == null || !sql.LastExecIsOK)
+                {
+                    sql.Close();
+                    SqlErrorMessage = ("Ошибка при чтении данных SQL [dbo].[view_groups]\n\n" + sql.pSqlErrorMessage);
+                    return false;
+                }
+
+            }
+            else
+            {
+                SqlErrorMessage = ("Нет доступа к SQL БД \n\n" + sql.pSqlErrorMessage);
+                return false;
+            }
+
+            sql.Close();
+
+            return true;
+        }
+
+
+
+
+        /// <summary>
+        /// Перезаписывает таблицу студентов 
+        /// </summary>
+        /// <returns>True - все OK, False - ошибка SQL, см. SqlErrorMessage  </returns>
+        public bool GetTabAverageSubjectsGrades(int id_stud, int months)
+        {
+            SqlErrorMessage = "";
+
+            if (TabAverageSubjectsGrades != null)
+                TabAverageSubjectsGrades.Clear();
+
+            if (sql.Open(connectionString))
+            {
+                // Помещаем выборку в таблицу
+                TabAverageSubjectsGrades = sql.ExecTab("SELECT * FROM [dbo].[fn_AverageSubjectGrade](" + id_stud + "," + months + ")");
+
+                if (TabAverageSubjectsGrades == null || !sql.LastExecIsOK)
+                {
+                    sql.Close();
+                    SqlErrorMessage = ("Ошибка при чтении данных SQL [dbo].[Students]\n\n" + sql.pSqlErrorMessage);
+                    return false;
+                }
+
+            }
+            else
+            {
+                SqlErrorMessage = ("Нет доступа к SQL БД \n\n" + sql.pSqlErrorMessage);
+                return false;
+            }
+
+            sql.Close();
+
+            return true;
+        }
+
+
 
 
 

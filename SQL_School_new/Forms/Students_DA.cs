@@ -6,6 +6,7 @@ using System.Data;
 using System.Data.SqlClient;
 using System.Drawing;
 using System.Linq;
+using System.Reflection.Emit;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -28,11 +29,17 @@ namespace SQL_School_new.Forms
         int _id_stud = -1;  // id студента, которого выбрал пользователь в таблице
         int idGroup = -1;   // id группы, которую выбрал пользователь в комбобоксе
 
+        int currentCountGrades; // количество отображаемых оценок для студента, по умолчанию 3
+
         public Students_DA()
         {
             InitializeComponent();
 
             dataGridView1.AutoGenerateColumns = false;  // отключаем автоматическое создание столбцов, т.к. мы их задаем в свойствах таблицы
+            dataGridView3.AutoGenerateColumns = false;
+
+            
+
         }
 
         /// <summary>
@@ -51,6 +58,15 @@ namespace SQL_School_new.Forms
 
             // заполняем группы
             showGroups();
+
+            // привязываем таблицу к биндингу, а биндинг к данным,
+            // чтобы при удалении строки из таблицы, она удалялась и из отображения
+            dataGridView1.DataSource = bindingSource1;
+
+
+            // привязываем текстовое поле к полю student_name из таблицы студентов,
+            // чтобы при выборе студента в таблице, его имя отображалось в textBox2
+            textBox2.DataBindings.Add("Text", bindingSource1, "student_name", true, DataSourceUpdateMode.OnPropertyChanged);  
         }
 
 
@@ -137,6 +153,9 @@ namespace SQL_School_new.Forms
             dataGridView1.DataSource = studs.TabStuds;
 
             // где какой столбец отображается задается в свойствах таблицы
+
+            bindingSource1.DataSource = studs.TabStuds;  
+            // привязываем биндинг к данным таблицы, чтобы при удалении строки из таблицы, она удалялась и из отображения
         }
 
         /// <summary>
@@ -161,13 +180,77 @@ namespace SQL_School_new.Forms
                 showStudentName( );
 
                 // заполняем среднюю оценку для этого студента
-
+                showAverageMark();
 
                 // заполняем все оценки этого студента в порядке убывания даты
+
+                showFirstGrades();
+
             }
 
 
         }
+
+
+        /// <summary>
+        /// Показывает первые 5 оценок студента в порядке убывания даты, если оценок меньше 5, то все оценки
+        /// </summary>
+        private void showFirstGrades() {
+
+            currentCountGrades = 3;
+
+            if (!studs.GetTabGrades(_id_stud))
+            {
+                showSqlError(studs.SqlErrorMessage); return;
+            }
+
+            
+
+
+
+            studs.TabGrades.Columns.Add("RowIndex", typeof(int));
+
+            for (int i = 0; i < studs.TabGrades.Rows.Count; i++)
+            {
+                studs.TabGrades.Rows[i]["RowIndex"] = i;
+            }
+
+            bindingSource2.DataSource = studs.TabGrades;
+
+            dataGridView3.DataSource = bindingSource2;
+
+            ApplyFilter();
+
+        }
+
+
+        /// <summary>
+        /// Фильтр для отображения только первых currentCountGrades оценок студента, остальные скрыты
+        /// </summary>
+        private void ApplyFilter()
+        {
+            bindingSource2.Filter = $"RowIndex < {currentCountGrades}";
+        }
+
+        /// <summary>
+        /// Показывает еще одну строку с оценками студента
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void button3_Click(object sender, EventArgs e)
+        {
+            if(currentCountGrades < studs.TabGrades.Rows.Count)
+            {
+                currentCountGrades++;
+                ApplyFilter();
+            }
+            else
+            {
+                MessageBox.Show("Показаны все оценки!");
+            }
+        }
+
+
 
         /// <summary>
         /// Отображает в текстбоксе 2 студента с указанным ID
@@ -186,13 +269,20 @@ namespace SQL_School_new.Forms
         /// Calculates and displays the average mark for the specified student.
         /// </summary>
         /// <param name="_id_stud">The unique identifier of the student whose average mark is to be displayed.</param>
-        private void showAverageMark(int _id_stud)
+        private void showAverageMark( )
         {
-            // Получаем среднюю оценку для студента с id = _id_stud
-            // и отображаем ее в textBox3
+            
+            // количество месяцев
             int months = (int)numericUpDown1.Value;
 
-            //return 0
+            if (!studs.GetTabAverageSubjectsGrades(_id_stud, months))
+            {
+                showSqlError(studs.SqlErrorMessage); return;
+            }
+
+            // привязываем датагрид к данным таблицы
+            dataGridView2.DataSource = studs.TabAverageSubjectsGrades;
+
         }
 
         /// <summary>
@@ -223,18 +313,79 @@ namespace SQL_School_new.Forms
         private void button2_Click(object sender, EventArgs e)
         {
             Form form = Application.OpenForms["AddNewStudentForm"];
+            DialogResult result = DialogResult.None;
 
             if (form == null)
             {
                 Forms.AddStudentForm addnewstudent = new Forms.AddStudentForm(studs);
-                addnewstudent.ShowDialog();
+                result = addnewstudent.ShowDialog();
             }
             else
             {
                 form.Focus();
             }
 
-            showGroupStuds();
+            if (result == DialogResult.OK)
+            {
+                showGroupStuds();
+            }
+                
+        }
+
+        /// <summary>
+        /// Проверка на корректность ввода данных (до фактического изменения в источнике данных) и сохранение в SQL.
+        /// Т.к. привязка грида студентов и этого текстбокса идет через один bindingSource, 
+        /// то данные на форме обновляются автоматом
+        /// Если некорректный ввод  - отмена изменения
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void textBox2_Validating(object sender, CancelEventArgs e)
+        {
+            // проверка на наличие выделенного студента (таблица не пустая)
+            if (dataGridView1.CurrentRow != null)
+            {
+                // введённый пользователем текс, который хочет заменить существующий
+                string newText = ((System.Windows.Forms.TextBox)sender).Text.Trim();
+                //MessageBox.Show(newText);
+
+                // Условие проверки введенного текста (например, поле не должно быть пустым)
+                if (string.IsNullOrWhiteSpace(newText))
+                {
+                    MessageBox.Show("Имя студента не может быть пустым!");
+                    // Отменяем переход к следующему контролу
+                    e.Cancel = true;
+                }
+                else
+                {
+                    // новое имя сохраняем в БД 
+                    //// определяем id студента (или можно сделать свойством этого класса и определять его только один раза в dataGridView1_RowEnter )
+                    //int _id_stud = Convert.ToInt32(dataGridView1.CurrentRow.Cells["Column_id_stud"].Value);
+
+                    //Сохраняем на в БД, если ошибка - откат
+                    if (studs.UpdateNameStudent(_id_stud, newText))
+                    {
+                        showSqlError(studs.SqlErrorMessage);
+                        // отмена замены текста новым 
+                        textBox1.Undo();
+                        return;
+                    }
+
+                }
+
+                /// принудительная перерисовка данных в таблице студентов
+                dataGridView1.Refresh();
+            }
+        }
+
+        /// <summary>
+        /// При изменении количества месяцев для средних оценок по предмету
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void numericUpDown1_ValueChanged(object sender, EventArgs e)
+        {
+            showAverageMark();
         }
     }
 

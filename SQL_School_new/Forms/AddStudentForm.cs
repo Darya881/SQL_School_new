@@ -55,6 +55,7 @@ namespace SQL_School_new.Forms
         private void button_cancel_Click(object sender, EventArgs e)
         {
             this.Close();
+            this.DialogResult = DialogResult.Cancel;
         }
 
         private void button_accept_Click(object sender, EventArgs e)
@@ -70,13 +71,14 @@ namespace SQL_School_new.Forms
             if (!_studs.AddStuds(student_name, birthdate, group))
             {
                 showSqlError(_studs.SqlErrorMessage);
-                this.Close();
+                //this.Close();
             }
             else
             {
                 MessageBox.Show("Студент успешно добавлен!");
             }
 
+            this.DialogResult = DialogResult.OK;
             this.Close();
         }
     }
